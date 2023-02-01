@@ -40,7 +40,7 @@ public class AudioAnalysis : MonoBehaviour {
             //freqBand is lower than buffer band, just copy bandbuffer and reset decreaseAmt
             if (freqBand[i] > bandBuffer[i]) {
                 bandBuffer[i] = freqBand[i];
-                bufferDecrease[i] = 0.0025f;
+                bufferDecrease[i] = 0.005f;
             }
 
             //freqBand is below buffer - decrease buffer by decreaseAmt until equal again^

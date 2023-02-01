@@ -27,20 +27,19 @@ public class ParticleGrid : MonoBehaviour
     Vector3[] originalPos;
     float[] distortionHeight;
 
-    bool isLerping;
-    bool isReturning;
+    float hitStrength;
 
-
-    //Beat reaction customization
-    public float _lerpPosTimer;
-    public float _lerpPosSpeed;                     
-    public Vector2 _lerpPosSpeedMinMax;
-    float lerpSpeed;
-    Vector2 lerpSpeedMinMax = new Vector2(0, 2);
+    public Vector2 minMaxSpeed;
+    public Vector2 minMaxEmission;
+    Material particleMat;
+    Color matColor;
 
     //Create grid
     private void OnEnable() {
         particleSystem = GetComponent<ParticleSystem>();
+        particleMat = GetComponent<Renderer>().material;
+        matColor = particleMat.GetColor("_EmissionColor");
+        print(matColor);
         numParticles = (int)(resolution.x * resolution.y * resolution.z);
         originalPos = new Vector3[numParticles];
         distortionHeight = new float[numParticles];
@@ -57,9 +56,9 @@ public class ParticleGrid : MonoBehaviour
         for(int i = 0; i < resolution.z; i++) {
             for(int j = 0; j < resolution.x; j++) {       
                 Vector3 position;
-                position.x = (i * spacing.x) - middleOffset.x;
+                position.x = (j * spacing.x) - middleOffset.x;
                 position.y = 0;
-                position.z = (j * spacing.z) - middleOffset.z;
+                position.z = (i * spacing.z) - middleOffset.z;
 
                 originalPos[(int)(i * resolution.x + j)] = position;
                 ep.position = position;
@@ -75,122 +74,57 @@ public class ParticleGrid : MonoBehaviour
     //Update is called once per frame
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.M)) {
-            print(particles.Length);
-        }
+        hitStrength = Analyzer.bandBuffer[Analyzer.FocusBand];        //between 0 and 1
 
-        if (Input.GetKeyDown(KeyCode.Space)) {
-            print("NoiseAdded");
-            GetTargetHeights();
-        }
-        WaveOnAudio2();
+        ChangeHue();
         GetTargetHeights();
-
-    }
-
-    //Sets height of each particle to perlinNoise value * scale - creates wave effect on grid
-    void AddNoise() {
-        for (int i = 0; i < resolution.z; i++) {
-            for (int j = 0; j < resolution.x; j++) {
-                float yOffset = Mathf.PerlinNoise(i * perlinScale, (j+perlinStartX) * perlinScale);
-                //particles[(int)(i*resolution.x + j)].position.x
-                Vector3 heightOffset = new Vector3(particles[(int)(i * resolution.x + j)].position.x, yOffset*distortionScale, particles[(int)(i * resolution.x + j)].position.z);
-                particles[(int)(i*resolution.x + j)].position = heightOffset;
-            }
-        }
+        WaveOnAudio();
         particleSystem.SetParticles(particles);
-        perlinStartX += perlinSpeed;
-        perlinStartY += perlinSpeed;
     }
 
+    void ChangeHue() {
+        if(hitStrength > threshold) {
+            //float h, s, v;
+            float newHue = Random.Range(0f,1f);
+
+            matColor = Color.HSVToRGB(newHue, 1f, 0.75f, true);
+            //print(matColor);
+        }
+    }
+
+    //update distortionHeight so we n
     void GetTargetHeights() {
         for (int i = 0; i < resolution.z; i++) {
             for (int j = 0; j < resolution.x; j++) {
                 float height = Mathf.PerlinNoise((i+perlinStartX)*perlinScale, (j+perlinStartY)*perlinScale);
                 height = Remap(height, 0, 1, -1, 1);
                 distortionHeight[(int)(i * resolution.x + j)] = height * distortionScale;
-                print(height);
+                particles[(int)(i * resolution.x + j)].position = new Vector3(particles[(int)(i * resolution.x + j)].position.x, distortionHeight[(int)(i * resolution.x + j)], particles[(int)(i * resolution.x + j)].position.z);
             }
         }
         perlinStartX += perlinSpeed;
         perlinStartY += perlinSpeed;
     }
 
-
     void WaveOnAudio() {
-        
-        float hitStrength = Analyzer.bandBuffer[Analyzer.FocusBand];        //between 0 and 1
-
-        if (hitStrength > threshold && !isLerping && !isReturning) {
-            isLerping = true;
-            _hitTimer = 0f;
-        }
-
-        if (isLerping) {
-            _hitTimer += Time.deltaTime * _hitSpeed;
-            _hitTimer = Mathf.Clamp01(_hitTimer);
-
-            //we have a hit, lerp to perlin height based off strength of hit
-            for (int i = 0; i < resolution.z; i++) {
-                for (int j = 0; j < resolution.x; j++) {
-                    float newHeight = Mathf.Lerp(0, distortionHeight[(int)(i * resolution.x + j)], _hitTimer);
-                    particles[(int)(i * resolution.x + j)].position = new Vector3(particles[(int)(i * resolution.x + j)].position.x, newHeight, particles[(int)(i * resolution.x + j)].position.z);
-                }
-            }
-            _coolDownTimer = 0f;
-        }
-
-        if(_hitTimer >= 1f) {
-            isLerping = false;
-            isReturning = true;
-        }
-
-        if (isReturning) {
-            //lerp back to original height
-            _coolDownTimer += Time.deltaTime * _coolDownSpeed;
-            _coolDownTimer = Mathf.Clamp01(_coolDownTimer);
-
-            for (int i = 0; i < resolution.z; i++) {
-                for (int j = 0; j < resolution.x; j++) {
-
-                    //Vector3 currentPos = particles[(int)(i * resolution.x + j)].position;
-                    float newHeight = Mathf.Lerp(distortionHeight[(int)(i * resolution.x + j)], 0, _coolDownTimer);
-                    particles[(int)(i * resolution.x + j)].position = new Vector3(particles[(int)(i * resolution.x + j)].position.x, newHeight, particles[(int)(i * resolution.x + j)].position.z);
-                }
-            }
-        }
-
-        if(_coolDownTimer >= 1f) {
-            isReturning = false;
-            _coolDownTimer = 0f;
-        }
-
-        particleSystem.SetParticles(particles);
-    }
-
-    void WaveOnAudio2() {
-        float hitStrength = Analyzer.bandBuffer[Analyzer.FocusBand];        //between 0 and 1
         
         for (int i = 0; i < resolution.z; i++) {
             for (int j = 0; j < resolution.x; j++) {
                 float newHeight = Mathf.Lerp(0, distortionHeight[(int)(i * resolution.x + j)], hitStrength);
+                float newEmission = Remap(hitStrength, 0, 1, minMaxEmission.x, minMaxEmission.y);
+                //print(newEmission);
+                Color newColor = (matColor * newEmission);
+                print(newColor);
+                particleMat.SetColor("_Color", newColor);
+                particleMat.SetColor("_EmissionColor", newColor);
                 particles[(int)(i * resolution.x + j)].position = new Vector3(particles[(int)(i * resolution.x + j)].position.x, newHeight, particles[(int)(i * resolution.x + j)].position.z);
             }
         }
-        particleSystem.SetParticles(particles);
     }
 
-    public float Remap(float value, float fromMin, float fromMax, float toMin, float toMax) {
-        float fromAbs = value - fromMin;
-        float fromMaxAbs = fromMax - fromMin;
-
-        float normal = fromAbs / fromMaxAbs;
-
-        float toMaxAbs = toMax - toMin;
-        float toAbs = toMaxAbs * normal;
-
-        float to = toAbs + toMin;
-
-        return to;
+    public float Remap(float value, float fromA, float toA, float fromB, float toB) {
+        float normal = Mathf.InverseLerp(fromA, toA, value);
+        float newValue = Mathf.Lerp(fromB, toB, normal);
+        return newValue;
     }
 }
