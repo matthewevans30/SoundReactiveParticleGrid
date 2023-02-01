@@ -21,9 +21,9 @@ public class ParticleGrid : MonoBehaviour
     public AudioAnalysis Analyzer;
     public float threshold = 0.6f;
     float _hitTimer;
-    float _coolDownTimer = 1f;
+    float _coolDownTimer = 0f;
     public float _hitSpeed = 1f;
-    public float _coolDownSpeed = 1f;
+    public float _coolDownSpeed = 0.05f;
     Vector3[] originalPos;
     float[] distortionHeight;
 
@@ -33,6 +33,7 @@ public class ParticleGrid : MonoBehaviour
     public Vector2 minMaxEmission;
     Material particleMat;
     Color matColor;
+    float hue;
 
     //Create grid
     private void OnEnable() {
@@ -83,12 +84,18 @@ public class ParticleGrid : MonoBehaviour
     }
 
     void ChangeHue() {
-        if(hitStrength > threshold) {
-            //float h, s, v;
-            float newHue = Random.Range(0f,1f);
+        hue += 0.01f;
+        _coolDownTimer -= _coolDownSpeed;
+        if(hue >= 1f) {
+            hue = 0;
+        }
+        if(hitStrength > threshold && _coolDownTimer <= 0) {
+            float newHue = hue;
+
 
             matColor = Color.HSVToRGB(newHue, 1f, 0.75f, true);
-            //print(matColor);
+            matColor.a = 1f;
+            _coolDownTimer = 1f;
         }
     }
 
